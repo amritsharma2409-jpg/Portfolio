@@ -965,6 +965,7 @@ section,footer.contact-footer{padding:var(--section) var(--gutter);}
   /* ---------- Preloader + hero reveal sequence ---------- */
   var preloader = document.getElementById("preloader");
   var countVal = document.getElementById("countVal");
+  var isTouch = window.matchMedia && window.matchMedia("(hover:none), (pointer:coarse)").matches;
 
   function revealHeroNow(){
     document.getElementById("hnLine1").classList.add("in");
@@ -974,12 +975,25 @@ section,footer.contact-footer{padding:var(--section) var(--gutter);}
     document.getElementById("scrollCue").classList.add("in");
   }
 
-  if (reduceMotion){
+  function forceUnlockScroll(){
+    startScroll();
+    preloader.style.pointerEvents = "none";
+    preloader.setAttribute("aria-hidden", "true");
+  }
+
+  // On touch devices (phones/tablets) or reduced-motion, skip the scroll-lock
+  // entirely -- the fancy preloader isn't worth the risk of a stuck scroll.
+  if (reduceMotion || isTouch){
     preloader.style.display = "none";
     revealHeroNow();
   } else {
     window.scrollTo(0,0);
     stopScroll();
+
+    // Safety net: no matter what happens with the transition/animation,
+    // guarantee scroll is unlocked after at most 4 seconds.
+    var safetyTimer = setTimeout(forceUnlockScroll, 4000);
+
     var start = null;
     var DURATION = 2000;
     function tick(ts){
@@ -996,12 +1010,16 @@ section,footer.contact-footer{padding:var(--section) var(--gutter);}
         preloader.classList.add("done");
         setTimeout(function(){
           preloader.classList.add("wipe");
-          preloader.addEventListener("transitionend", function onEnd(){
-            preloader.removeEventListener("transitionend", onEnd);
-            preloader.style.pointerEvents = "none";
-            preloader.setAttribute("aria-hidden","true");
-            startScroll();
-          });
+          var unlocked = false;
+          function unlockOnce(){
+            if (unlocked) return;
+            unlocked = true;
+            clearTimeout(safetyTimer);
+            forceUnlockScroll();
+          }
+          preloader.addEventListener("transitionend", unlockOnce, { once: true });
+          // Extra fallback in case transitionend never fires on this device.
+          setTimeout(unlockOnce, 900);
         }, 200);
       }, 100);
     }
@@ -1012,7 +1030,6 @@ section,footer.contact-footer{padding:var(--section) var(--gutter);}
     setTimeout(function(){ document.getElementById("heroDesc").classList.add("in"); }, 2900);
     setTimeout(function(){ document.getElementById("scrollCue").classList.add("in"); }, 3400);
   }
-
   /* ---------- Mobile menu ---------- */
   var burger = document.getElementById("burgerBtn");
   var mobileMenu = document.getElementById("mobile-menu");
